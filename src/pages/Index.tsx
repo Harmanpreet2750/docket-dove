@@ -1,24 +1,93 @@
-import { useState } from 'react';
-import { PetitionForm } from '@/components/PetitionForm';
-import { ScheduleDisplay } from '@/components/ScheduleDisplay';
-import { SlotManagement } from '@/components/SlotManagement';
-import { Petition, TimeSlot, ScheduledHearing } from '@/types/scheduler';
-import { scheduleHearings } from '@/utils/scheduler';
-import { useToast } from '@/hooks/use-toast';
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Scale, Calendar, Clock, TrendingUp } from 'lucide-react';
+import { Brain, Calendar, Users, Clock, Scale, Shield, Zap, AlertTriangle, User, Building, Settings, TrendingUp } from 'lucide-react';
+import { PetitionForm } from '@/components/PetitionForm';
+import { SlotManagement } from '@/components/SlotManagement';
+import { ScheduleDisplay } from '@/components/ScheduleDisplay';
+import { JudgeManagement } from '@/components/JudgeManagement';
+import { CalendarManagement } from '@/components/CalendarManagement';
+import { CourtroomManagement } from '@/components/CourtroomManagement';
+import { BulkPetitionEntry } from '@/components/BulkPetitionEntry';
+import { useToast } from '@/hooks/use-toast';
+import { Petition, TimeSlot, ScheduledHearing, Judge, Courtroom, CourtCalendar } from '@/types/scheduler';
+import { scheduleHearings } from '@/utils/scheduler';
+import { storage } from '@/utils/dataStorage';
 
 const Index = () => {
-  const { toast } = useToast();
   const [petitions, setPetitions] = useState<Petition[]>([]);
   const [availableSlots, setAvailableSlots] = useState<TimeSlot[]>([]);
   const [scheduledHearings, setScheduledHearings] = useState<ScheduledHearing[]>([]);
   const [unscheduledPetitions, setUnscheduledPetitions] = useState<Petition[]>([]);
+  const [judges, setJudges] = useState<Judge[]>([]);
+  const [courtrooms, setCourtrooms] = useState<Courtroom[]>([]);
+  const [courtCalendar, setCourtCalendar] = useState<CourtCalendar | null>(null);
+  const { toast } = useToast();
+
+  // Load data from localStorage on component mount
+  useEffect(() => {
+    storage.initializeDefaults();
+    setJudges(storage.loadJudges());
+    setCourtrooms(storage.loadCourtrooms());
+    setCourtCalendar(storage.loadCalendar());
+    setPetitions(storage.loadPetitions());
+    setAvailableSlots(storage.loadTimeSlots());
+    setScheduledHearings(storage.loadScheduledHearings());
+  }, []);
+
+  // Save data to localStorage whenever state changes
+  useEffect(() => {
+    if (judges.length > 0) storage.saveJudges(judges);
+  }, [judges]);
+
+  useEffect(() => {
+    if (courtrooms.length > 0) storage.saveCourtrooms(courtrooms);
+  }, [courtrooms]);
+
+  useEffect(() => {
+    if (courtCalendar) storage.saveCalendar(courtCalendar);
+  }, [courtCalendar]);
+
+  useEffect(() => {
+    storage.savePetitions(petitions);
+  }, [petitions]);
+
+  useEffect(() => {
+    storage.saveTimeSlots(availableSlots);
+  }, [availableSlots]);
+
+  useEffect(() => {
+    storage.saveScheduledHearings(scheduledHearings);
+  }, [scheduledHearings]);
 
   const handleAddPetition = (petition: Petition) => {
     setPetitions(prev => [...prev, petition]);
+    toast({
+      title: "Petition Added",
+      description: `Case ${petition.caseNumber} has been added to the queue.`
+    });
+  };
+
+  const handleAddPetitions = (newPetitions: Petition[]) => {
+    setPetitions(prev => [...prev, ...newPetitions]);
+    toast({
+      title: "Petitions Added",
+      description: `${newPetitions.length} petitions have been added to the queue.`
+    });
+  };
+
+  const handleJudgesUpdate = (updatedJudges: Judge[]) => {
+    setJudges(updatedJudges);
+  };
+
+  const handleCourtroomsUpdate = (updatedCourtrooms: Courtroom[]) => {
+    setCourtrooms(updatedCourtrooms);
+  };
+
+  const handleCalendarUpdate = (updatedCalendar: CourtCalendar) => {
+    setCourtCalendar(updatedCalendar);
   };
 
   const handleSlotsGenerated = (slots: TimeSlot[]) => {
@@ -75,7 +144,7 @@ const Index = () => {
             <div>
               <h1 className="text-3xl font-bold">AI Court Scheduler</h1>
               <p className="text-judicial-foreground/80">
-                Intelligent hearing scheduling with priority management and bail considerations
+                Comprehensive court management with intelligent hearing scheduling
               </p>
             </div>
           </div>
@@ -135,11 +204,15 @@ const Index = () => {
         </div>
 
         {/* Main Interface */}
-        <Tabs defaultValue="schedule" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="schedule">Schedule & Queue</TabsTrigger>
+        <Tabs defaultValue="schedule" className="w-full">
+          <TabsList className="grid grid-cols-7 w-full">
+            <TabsTrigger value="schedule">Schedule</TabsTrigger>
             <TabsTrigger value="petition">Add Petition</TabsTrigger>
-            <TabsTrigger value="slots">Manage Slots</TabsTrigger>
+            <TabsTrigger value="bulk">Bulk Entry</TabsTrigger>
+            <TabsTrigger value="slots">Slots</TabsTrigger>
+            <TabsTrigger value="judges">Judges</TabsTrigger>
+            <TabsTrigger value="courtrooms">Courtrooms</TabsTrigger>
+            <TabsTrigger value="calendar">Calendar</TabsTrigger>
           </TabsList>
 
           <TabsContent value="schedule" className="space-y-6">
@@ -154,37 +227,106 @@ const Index = () => {
             <PetitionForm onAddPetition={handleAddPetition} />
           </TabsContent>
 
+          <TabsContent value="bulk">
+            <BulkPetitionEntry onPetitionsAdd={handleAddPetitions} />
+          </TabsContent>
+
           <TabsContent value="slots">
-            <SlotManagement
-              availableSlots={availableSlots}
-              onSlotsGenerated={handleSlotsGenerated}
+            <SlotManagement 
+              availableSlots={availableSlots} 
+              onSlotsGenerated={handleSlotsGenerated} 
             />
+          </TabsContent>
+
+          <TabsContent value="judges">
+            <JudgeManagement 
+              judges={judges}
+              onJudgesUpdate={handleJudgesUpdate}
+            />
+          </TabsContent>
+
+          <TabsContent value="courtrooms">
+            <CourtroomManagement 
+              courtrooms={courtrooms}
+              onCourtroomsUpdate={handleCourtroomsUpdate}
+            />
+          </TabsContent>
+
+          <TabsContent value="calendar">
+            {courtCalendar && (
+              <CalendarManagement 
+                courtCalendar={courtCalendar}
+                onCalendarUpdate={handleCalendarUpdate}
+              />
+            )}
           </TabsContent>
         </Tabs>
 
         {/* AI Scheduler Features */}
         <Card className="mt-8">
           <CardHeader>
-            <CardTitle className="text-judicial">AI Scheduler Features</CardTitle>
+            <CardTitle className="text-judicial flex items-center gap-2">
+              <Brain className="w-5 h-5" />
+              AI Scheduler Features
+            </CardTitle>
+            <CardDescription>
+              Advanced features for intelligent court scheduling and management
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <div className="p-4 border border-border rounded-lg">
-                <h3 className="font-semibold mb-2">Priority-Based Scheduling</h3>
+                <div className="flex items-center gap-2 mb-2">
+                  <AlertTriangle className="w-4 h-4 text-urgent" />
+                  <h3 className="font-semibold">Priority-Based Scheduling</h3>
+                </div>
                 <p className="text-sm text-muted-foreground">
                   Automatically prioritizes urgent cases and considers filing dates for optimal scheduling
                 </p>
               </div>
               <div className="p-4 border border-border rounded-lg">
-                <h3 className="font-semibold mb-2">Weekend Bail Protection</h3>
+                <div className="flex items-center gap-2 mb-2">
+                  <Shield className="w-4 h-4 text-success" />
+                  <h3 className="font-semibold">Weekend Bail Protection</h3>
+                </div>
                 <p className="text-sm text-muted-foreground">
                   Ensures bailable petitions are not scheduled on weekends to allow for bail processing
                 </p>
               </div>
               <div className="p-4 border border-border rounded-lg">
-                <h3 className="font-semibold mb-2">Judge & Courtroom Optimization</h3>
+                <div className="flex items-center gap-2 mb-2">
+                  <User className="w-4 h-4 text-judicial" />
+                  <h3 className="font-semibold">Judge Specialization Matching</h3>
+                </div>
                 <p className="text-sm text-muted-foreground">
-                  Efficiently allocates available judges and courtrooms based on case duration and type
+                  Matches cases with judges based on their specializations and experience
+                </p>
+              </div>
+              <div className="p-4 border border-border rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <Building className="w-4 h-4 text-primary" />
+                  <h3 className="font-semibold">Courtroom Optimization</h3>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Efficiently allocates courtrooms based on capacity, equipment, and case requirements
+                </p>
+              </div>
+              <div className="p-4 border border-border rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <Calendar className="w-4 h-4 text-accent" />
+                  <h3 className="font-semibold">Dynamic Calendar Management</h3>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Respects court holidays, working hours, and judge availability for accurate scheduling
+                </p>
+              </div>
+              <div className="p-4 border border-border rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <Zap className="w-4 h-4 text-warning" />
+                  <h3 className="font-semibold">Bulk Data Processing</h3>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Generate sample data or import existing cases for comprehensive scheduling testing
                 </p>
               </div>
             </div>

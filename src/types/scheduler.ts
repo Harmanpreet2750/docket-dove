@@ -35,8 +35,30 @@ export interface ScheduledHearing {
 export interface Judge {
   id: string;
   name: string;
+  email: string;
+  phone: string;
   specialization: string[];
-  availability: {
-    [key: string]: { start: string; end: string }[];
+  courtrooms: string[];
+  workingHours: {
+    [key: string]: { start: string; end: string; breaks: { start: string; end: string }[] };
   };
+  unavailableDates: Date[];
+  isActive: boolean;
+}
+
+export interface Courtroom {
+  id: string;
+  name: string;
+  capacity: number;
+  equipment: string[];
+  isActive: boolean;
+}
+
+export interface CourtCalendar {
+  id: string;
+  workingDays: string[];
+  holidays: Date[];
+  workingHours: { start: string; end: string };
+  lunchBreak: { start: string; end: string };
+  emergencySlots: boolean;
 }
